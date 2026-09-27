@@ -4,7 +4,7 @@ import { buildMetaPrompt, extractText, OPTIMIZE_TIMEOUT_MS } from './optimize.js
 export const name = 'dsh-prompt-optimizer'
 
 /** Host-side services used by the optimizer command. */
-export const inject = ['llm', 'settings']
+export const inject = ['llm', 'settings', 'command']
 
 /** Narrow context face over the injected host services (keeps `noImplicitAny`). */
 export interface HostPluginContext extends Context {
