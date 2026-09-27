@@ -1,0 +1,61 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps --ignore-scripts
+
+      - name: Typecheck
+        run: npx tsc -p tsconfig.json --noEmit
+
+      - name: Compile host (tsc)
+        run: npx tsc -p tsconfig.json
+
+      - name: Bundle client (esbuild)
+        shell: pwsh
+        run: |
+          $bin = "node_modules/@esbuild/win32-x64/esbuild.exe"
+          $externals = (node -e "const p=require('./package.json'); console.log([...Object.keys(p.peerDependencies||{}), 'react','react-dom','react/jsx-runtime'].map(e=>'--external:'+e).join(' '))")
+          $args = @('src/client.tsx','--bundle','--platform=browser','--format=cjs','--target=es2020','--jsx=automatic') + ($externals -split ' ') + @('--outfile=lib/client.raw.js')
+          & $bin @args
+          $raw = Get-Content lib/client.raw.js -Raw
+          $wrapped = 'window.__ModuleLoader__.load({id:"dsh-prompt-optimizer",factory:(require)=>{var module={exports:{}};var exports=module.exports;' + "`n" + $raw + "`n" + ';return module.exports;}});' + "`n"
+          Set-Content lib/client.js $wrapped -NoNewline
+          Remove-Item lib/client.raw.js
+
+      - name: Verify artifacts
+        shell: pwsh
+        run: |
+          node --check lib/client.js
+          node --input-type=module -e "import('./lib/index.js').then(m => console.log('HOST EXPORTS:', Object.keys(m).join(',')))"
+          if (-not (Select-String -Path lib/client.js -Pattern 'conversation\.input\.right' -Quiet)) { throw 'composer slot missing in bundle' }
+          if (-not (Select-String -Path lib/client.js -Pattern 'settings\.section' -Quiet)) { throw 'settings slot missing in bundle' }
+          Write-Output 'VERIFY OK'
+
+      - name: Upload plugin artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-prompt-optimizer
+          path: |
+            lib/
+            package.json
+            cordis.patch.yml
+            README.md
+            KNOWN_ISSUES.md
+            LICENSE

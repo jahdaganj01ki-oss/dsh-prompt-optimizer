@@ -1,0 +1,6 @@
+node_modules/
+.npm-cache/
+lib/
+*.log
+*.tmp
+desktop-storage.json.tmp.*

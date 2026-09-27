@@ -1,0 +1,4 @@
+# Prompt Optimizer — composer draft optimization for DSH Desktop.
+- insert:
+    - id: prompt-optimizer
+      name: 'dsh-prompt-optimizer'
